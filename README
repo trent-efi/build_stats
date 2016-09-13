@@ -1,0 +1,59 @@
+Build Data Stats:
+
+This directory contains the scripts needed to control:
+
+http://root.efi.com/~trentrus/stats/
+
+The following files are used for this site:
+
+---------------------------------------
+Web Site:
+---------------------------------------
+index.html:
+Main view for the page
+
+controller.php:
+Connects to the DB and builds the table/graph
+
+Calendar widget:
+https://jqueryui.com/datepicker/
+
+example:
+<link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+<script src="//code.jquery.com/jquery-1.10.2.js"></script>
+<script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+<script>
+    $(function() {
+        $( "#datepicker0" ).datepicker();
+    });    
+    $(function() {
+        $( "#datepicker1" ).datepicker();
+    });
+</script>
+
+---------------------------------------
+Script to collect data for MySQL:
+---------------------------------------
+cron_build_controller.py:
+Script to get the current date and call 'alpha_builder.py' as the argument
+
+alpha_builder.py:
+Takes in a date and scrapes the data from Calculus. Can be ran alone
+to collect data on a given date if the crontab fails to execute.
+
+auto_build_controller.py:
+This script will take todays date and subtract a year. The program will cycle
+through the dates collecting data till it reaches today. This shouldn't be
+ran unless the database is lost or corrupted.
+
+crontab:
+This is the crontab in codesearch that runs every day at 7am
+0 7 * * * /usr/bin/python /home/trentrus/public_html/stats/cron_build_controller.py
+
+---------------------------------------
+MySQL:
+---------------------------------------
+schema.sql:
+The schema for the db
+
+mysql --host=codesearch build_stats --user=efi_devops --password=efi_devops

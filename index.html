@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head> 
+        <script class="include" type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+
+        <!--JQPLOT-->
+        <link class="include" rel="stylesheet" type="text/css" href="http://root.efi.com/~trentrus/stats/dist/jquery.jqplot.min.css" />
+        <script type="text/javascript" src="http://root.efi.com/~trentrus/stats/dist/jquery.jqplot.min.js"></script>
+        <script type="text/javascript" src="http://root.efi.com/~trentrus/stats/dist/plugins/jqplot.cursor.min.js"></script>
+        <script type="text/javascript" src="http://root.efi.com/~trentrus/stats/dist/plugins/jqplot.highlighter.min.js"></script>
+        <script type="text/javascript" src="http://root.efi.com/~trentrus/stats/dist/jquery.jqplot.js"></script>
+        <script type="text/javascript" src="http://root.efi.com/~trentrus/stats/dist/plugins/jqplot.json2.js"></script>
+
+        <!--DATEPICKER-->
+        <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+        <script src="//code.jquery.com/jquery-1.10.2.js"></script>
+        <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>     
+        <script>
+            $(function() {
+                $( "#datepicker0" ).datepicker();
+            });    
+            $(function() {
+                $( "#datepicker1" ).datepicker();
+            });
+        </script>
+    </head>
+    <body>
+        <div><input type='checkbox' name='cb_code_base[]' value='' class='cb_checkbox_group' style='display: none;'></div>
+        <table class='outer_table'>
+            <tr><td colspan='42' id='title_row'><h1>Build Request Stats: Build Request Data By Region</h1></td></tr>
+            <tr id='tr_date_row'>
+                <td id='td_date_box' colspan='1' height="90%">
+                    <div id='div_dates_container'>
+
+                        <div class="div_date_box">
+                            <div><b>SELECT A DATE RANGE:</b></div>
+                            <div>
+                                <br>
+                                <table>
+                                    <tr><td>Start Date:</td><td><input type="text" id="datepicker0" value=""></td></tr>
+                                    <tr><td>End Date:</td><td><input type="text" id="datepicker1" value=""></td></tr>
+                                    <tr><td>Select an OS:</td><td><select id='os_box'><option value="1">Windows</option><option value="2">Linux</option><option value="os_id">All</option></select></td></tr>
+                                </table>
+                                <br>
+                            </div>
+                        </div><!--END #div_date_box-->
+
+                        <div class='div_date_box'>
+                            <div><b>WEEKLY REPORTING VIEW:</b></div>
+                            <div>
+	                              <div><br><input id="weekly_report_checkbox" type="checkbox" name="weekly_report" >Enable Weekly Reporting View<br><br></div>
+                            </div>
+                            <div style='color: grey;'>**Note: For best results on Weekly Reporting**</div>
+                            <div style='color: grey;'>Start date should be a Monday</div> 
+                            <div style='color: grey;'>End date should be a Sunday</div> 
+                        </div>
+
+                        <div class='div_date_box'>
+                            <div><b>CLICK BUTTON TO UPDATE CHART:</b></div>
+                            <div><br><button onclick="On_Button_Click()">Update Chart</button></div>
+                            <div><br></div>
+                        </div>
+                    </div><!--END #div_container-->
+                </td><!--END #td_date_box-->
+                <td id='td_chart_box' colspan='42'>
+                    <div id="div_chart_container" >
+                        <div id='stats'></div>
+                        <div id='chart1'></div>
+                    </div><!--END #div_container-->
+                </td><!--END #td_chart_box-->
+            </tr><!--END #tr_date_row-->
+        </table>
+
+        <!--MORE JQPLOT-->
+	      <script class="include" type="text/javascript" src="http://root.efi.com/~trentrus/stats/dist/jquery.jqplot.js"></script>
+        <script class="include" type="text/javascript" src="http://root.efi.com/~trentrus/stats/dist/plugins/jqplot.cursor.min.js"></script>
+        <script class="include" type="text/javascript" src="http://root.efi.com/~trentrus/stats/dist/plugins/jqplot.highlighter.min.js"></script>
+
+<script>
+    /**************************************************************************
+     * GLOBAL VARIABLES:
+     *************************************************************************/
+     START = undefined;
+     END = undefined;
+     OS = undefined;
+
+     DATE_ARR = [];
+
+    /**************************************************************************
+     * ready(): Executes when the page first loads. Set the dates and call
+     * the function 'On_Button_Click()'
+     *************************************************************************/
+    $(document).ready(function() { 
+        //var plot1 = $.jqplot ('chart1', [[3,7,9,1,5,3,8,2,5]]);
+
+        //Yesterday's date
+        var yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        var day = Parse_Day(yesterday.getDate());
+        var month = Parse_Month(yesterday.getMonth());
+        var year = Parse_Year(yesterday.getFullYear());
+
+
+        //START the chart with yesterdays data...
+        document.getElementById('datepicker0').value=month+"/"+day+"/"+year;
+        document.getElementById('datepicker1').value=month+"/"+day+"/"+year;
+
+        On_Button_Click();
+
+    });//end ready()
+
+    /**************************************************************************
+     *
+     *************************************************************************/
+    function Weekly_Checkbox_Logic(start, end){
+        
+        var weekly_cb = document.getElementById("weekly_report_checkbox").checked;
+        var weekly_view = 0;
+
+        if(weekly_cb == true){
+            Weekly_Checkbox_Start_Logic(start, end);
+            Weekly_Checkbox_End_Logic(start, end);
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+
+    /**************************************************************************
+     *
+     *************************************************************************/
+    function Weekly_Checkbox_Start_Logic(start_str, end_str){
+        var start = new Date(start_str);
+        var state = start.getDay() - 1;
+
+        var day = '';
+        var month = '';
+        var year = '';
+        if(state < 0){
+            //Sunday
+            state = 6;
+            start.setDate(start.getDate() - state); 
+            day = Parse_Day(start.getDate());
+            month = Parse_Month(start.getMonth());
+            year = Parse_Year(start.getFullYear());
+
+            document.getElementById('datepicker0').value=month+"/"+day+"/"+year;
+        }  else if(state > 0){
+            //Tue -> Sat
+            start.setDate(start.getDate() - state);
+
+            day = Parse_Day(start.getDate());
+            month = Parse_Month(start.getMonth());
+            year = Parse_Year(start.getFullYear());
+
+            document.getElementById('datepicker0').value=month+"/"+day+"/"+year;
+        } 
+    }
+
+    /**************************************************************************
+     *
+     *************************************************************************/
+    function Weekly_Checkbox_End_Logic(start_str, end_str){
+        var end = new Date(end_str);
+        var start = new Date(start_str);
+        var state = end.getDay();
+
+        var day = '';
+        var month = '';
+        var year = '';
+
+        if(state == 0){
+            //Sunday
+        } else if (state > 0){
+            
+            end.setDate(end.getDate() - state); 
+
+            if (end < start){
+                end.setDate(end.getDate() + 7);
+            }
+            day = Parse_Day(end.getDate());
+            month = Parse_Month(end.getMonth());
+            year = Parse_Year(end.getFullYear());
+
+            document.getElementById('datepicker1').value=month+"/"+day+"/"+year;
+        }    
+    }
+
+    /**************************************************************************
+     * On_Button_Click(): Executes when button is clicked 
+     *************************************************************************/
+    function On_Button_Click(){
+        //Get start date
+        var start_str = document.getElementById('datepicker0').value;
+    
+        //Get end date
+	      var end_str = document.getElementById('datepicker1').value;
+
+        //Check weekly report checkbox
+        var weekly_view = Weekly_Checkbox_Logic(start_str, end_str);
+
+        //Need to up date the variables in case they changed...
+        start_str = document.getElementById('datepicker0').value;
+	      end_str = document.getElementById('datepicker1').value;
+
+        var start_dt = new Date(start_str);
+        var end_dt   = new Date(end_str);
+
+        //Test start/end dates against this date...
+        var edge_date = new Date();
+        edge_date.setDate(edge_date.getDate() - 1);
+
+        //END DATE
+        end_dt.setDate(end_dt.getDate() + 1);
+        var day = Parse_Day(end_dt.getDate());
+        var month = Parse_Month(end_dt.getMonth());
+        var year = Parse_Year(end_dt.getFullYear());
+        var end = year+month+day;
+
+        //START DATE
+        day = Parse_Day(start_dt.getDate());
+        month = Parse_Month(start_dt.getMonth());
+        year = Parse_Year(start_dt.getFullYear());
+        var start = year+month+day;
+
+
+        var os = document.getElementById('os_box').value;
+
+        day = Parse_Day(edge_date.getDate());
+        month = Parse_Month(edge_date.getMonth());
+        year = Parse_Year(edge_date.getFullYear());
+
+        end_dt.setDate(end_dt.getDate() - 1);
+
+        if(start_dt > edge_date){
+            //console.log("START: "+start_dt);
+            alert("Start Date must be on or before: "+month+"/"+day+"/"+year);
+        } else if(end_dt > edge_date ){
+            //console.log("END:"+end_dt);
+            alert("End Date must be on or before: "+month+"/"+day+"/"+year);
+        } else if(start_dt > end_dt ){
+            //console.log("END:"+end_dt);
+            //console.log("START: "+start_dt);
+            alert("Start Date must be on or before End Date");
+        } else {
+            START = start;
+            END = end;
+            OS = os;
+
+            $.ajax({
+                url: 'controller.php',
+                type: 'POST',
+	              data: {'function': 'get_data', 'start': start, 'end': end, 'os': os, 'weekly_view': weekly_view},
+	              success: function(str){
+                    $('#stats').html(str);
+                    //console.log(str);
+                    Update_Graph();
+                }
+            });
+        }
+    }//end On_Button_Click()
+
+    /**************************************************************************
+     *
+     *************************************************************************/
+    function Assign_Checkbox_Listener(){
+        /*$('.cb_checkbox_group').change(function() {
+            alert('change');
+        });*/ 
+        /*$('.cb_checkbox_group').click(function() {
+            Update_Graph();
+        });*/   
+        return 0;
+    }
+
+    function CodeBase_ID_Lookup(codebase){
+        var value = 0;
+        switch(codebase){
+            case 'flame10': value = 1; break;
+            case 'flame20': value = 2; break;
+            case 'flame30': value = 3; break;
+            case 'flame40': value = 4; break;
+            case 'flame45': value = 5; break;
+            case 'flame50': value = 6; break;
+            case 'flame60': value = 7; break;
+            case 'emerald10': value = 8; break;
+            case 'barracuda10': value = 9; break;
+            case 'ice21': value = 10; break;
+            case 'ice22': value = 11; break;
+            case 'ice23': value = 12; break;
+            case 'tourmaline10': value = 13; break;
+            case 'sky21': value = 14; break;
+            case 'sky22': value = 15; break;
+            case 'sky23': value = 16; break;
+        }
+        return value;
+
+    }
+
+    /**************************************************************************
+     *
+     *************************************************************************/
+    function Update_Graph(){
+        //var plot1 = $.jqplot ('chart1', [[3,7,9,1,5,3,8,2,5]]);
+        //GET OS
+        var os = OS;
+
+        //GET START DATE
+        var start = START;
+
+        //GET END DATE
+        var end = END;
+
+        DATE_ARR = Fill_Date_Arr(START, END);  
+
+        //GET weekly view checkbox
+        var weekly_cb = document.getElementById("weekly_report_checkbox").checked;
+        var weekly_view = 0;
+
+        if(weekly_cb == true){
+            weekly_view = 1;
+        } else {
+            weekly_view = 0;
+        }
+
+        //GET CHECKBOX VALUES
+        var cb = '';
+        var inputElements = document.getElementsByClassName('cb_checkbox_group');
+        for(var i = 0; inputElements[i]; i++){
+            if(inputElements[i].checked){
+               cb += CodeBase_ID_Lookup(inputElements[i].value) + ", ";
+            }
+        }
+        cb += "0";
+        if( cb.length == 1 ){
+            /*var plot1 = $.jqplot ('chart1', [[null]]);
+            plot1.replot();*/
+            Replot_Graph([[null]]);
+        } else {
+            $.ajax({
+                url: 'controller.php',
+                type: 'POST',
+                data: {'function': 'update_graph', 'start': start, 'end': end, 'os': os, 'cb': cb, 'date_arr': DATE_ARR, 'weekly_view': weekly_view},
+                success: function(str){
+                    //plot1 = $.jqplot ('chart1', [[3,7,9,1,5,3,8,2,5]]);
+                    var arr = eval(str);
+                    console.log(str);
+                    arr[0].pop();
+                    arr[1].pop();
+                    arr[2].pop();
+                    arr[3].pop();
+
+                    Replot_Graph(arr);
+                }
+            });//end ajax 
+        }//end else
+    }
+    
+    /**************************************************************************
+     *
+     *************************************************************************/
+    function Replot_Graph(data_arr ){
+
+        var date_arr = DATE_ARR;
+        //console.log(data_arr);
+        var options = {
+            axesDefaults: {
+                tickRenderer: $.jqplot.CanvasAxisTickRenderer ,
+                tickOptions: {
+                   angle: -30,
+                   fontSize: '10pt'
+                }
+            },
+            legend: {
+	          labels: ["Fremont", "VC_Fremont", "IDC", "VC_IDC"],
+                show: true,
+                rendererOptions: {
+                    fontSize: '10pt'
+                }
+	          },
+            seriesDefaults: {
+                renderer: $.jqplot.CanvasAxisLabelRenderer,
+                rendererOptions: {
+                    smooth: true
+                },
+                pointLabels: {
+                    show: true
+                },
+                breakOnNull: true
+            },
+            axes: {
+                xaxis: {
+		                label:'Year/Month/Day',
+		                tickInterval: 1,
+                    renderer: $.jqplot.CategoryAxisRenderer,
+                    pad: 1.1,
+                    ticks: date_arr
+                },
+                yaxis: {
+		                label:'Time (minutes)',
+		                pad: 1.2,
+		                renderer: $.jqplot.LinearAxisRenderer
+		            }
+            }
+        };
+        var plot1 = $.jqplot ('chart1', data_arr, options);
+        plot1.replot();    
+    }
+
+    /**************************************************************************
+     *
+     *************************************************************************/
+    function Fill_Date_Arr(start, end){
+        var date_arr = [];
+
+        //PARSE start date
+        var start_str  = start.toString();
+        var start_date   = new Date(parseInt(start_str.substring(0,4)), parseInt(start_str.substring(4,6)) - 1, parseInt(start_str.substring(6,8)));
+
+        //PARSE end date
+        var end_str    = end.toString();
+        var end_date   = new Date(parseInt(end_str.substring(0,4)), parseInt(end_str.substring(4,6)) - 1, parseInt(end_str.substring(6,8)));
+        end_date.setDate(end_date.getDate() - 1);
+
+        var i = 0;
+        var day = '';
+        var month = '';
+        var year = '';
+
+        var weekly_cb = document.getElementById("weekly_report_checkbox").checked;
+
+        while(end_date >= start_date){
+
+            day = Parse_Day(start_date.getDate());
+            month = Parse_Month(start_date.getMonth());
+            year = Parse_Year(start_date.getFullYear());
+            start = year+month+day;
+
+            date_arr[i] = start;
+
+            //INCREMENT start date and i
+            if (weekly_cb == true){
+                start_date.setDate(start_date.getDate() + 7);
+            } else {
+                start_date.setDate(start_date.getDate() + 1);
+            }
+            i++;
+          
+        }
+        //console.log(date_arr.toString());
+        return date_arr;
+    }
+
+    /**************************************************************************
+     * Parse_Year(): Returns a string of the year
+     *************************************************************************/
+    function Parse_Year(year){
+        var str = year.toString();
+        return str;
+    }
+
+    /**************************************************************************
+     * Parse_Month(): Returns a string of a year from a date
+     *************************************************************************/
+    function Parse_Month(month){
+        var str = (month+1).toString();
+        if(str.length == 1){
+            str = "0"+str;
+        }
+        return str;
+    }
+
+    /**************************************************************************
+     * Parse_Day(): Returns a string of the day from a date
+     *************************************************************************/
+    function Parse_Day(day){
+        var str = day.toString();
+        if(str.length == 1){
+            str = "0"+str;
+        }
+        return str;
+    }
+
+    /**************************************************************************
+     * Find_Monday_By_Date(): Find the first day in the week by a given date
+     *************************************************************************/
+    function Find_Monday(start_date){
+        var monday = 0;
+        return monday;
+    }
+
+    /**************************************************************************
+     * Plus_Seven_Days(): Increment seven days for a given date
+     *************************************************************************/
+    function Plus_Seven_Days(a_date){
+        var seventh_day = 0;
+        return seventh_day;
+    }
+</script>
+
+  <script class="include" language="javascript" type="text/javascript" src="http://root.efi.com/~trentrus/stats/dist/plugins/jqplot.canvasTextRenderer.js"></script>
+  <script class="include" language="javascript" type="text/javascript" src="http://root.efi.com/~trentrus/stats/dist/plugins/jqplot.canvasAxisTickRenderer.js"></script>
+  <script class="include" language="javascript" type="text/javascript" src="http://root.efi.com/~trentrus/stats/dist/plugins/jqplot.categoryAxisRenderer.js"></script>
+
+    </body>
+</html>
+<style>
+.outer_table{
+    border: 1px solid black;
+    position: absolute;
+    height: 100%;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+}
+/*.outer_table td {
+  position: relative;
+
+}*/
+#title_row{
+    border: 1px solid black;
+}
+#td_date_box{
+    border: 1px solid black;
+    /*height: 50%;*/
+    width: 10%;
+}
+#div_dates_container{
+    /*height: 50%;*/
+    /*display:inline-block;*/
+    width: 100%;
+    height: 100%; 
+}
+#div_chart_container{
+    /*height: 50%;*/
+    /*display:inline-block;*/
+position: relative;
+    width: 100%;
+    height: 100%; 
+}
+.div_date_box{
+    border: 1px solid black;
+}
+#td_chart_box{
+    border: 1px solid black;
+    /*height: 40%;*/
+    width: 90%;
+    height: 100%;
+}
+#stats{
+    /*margin:auto;
+    display:inline-block;*/
+position: absolute; 
+top: 0;
+    width: 100%;
+}
+#chart1{
+    /*display:inline-block;*/
+position: absolute; 
+bottom: 0;
+    width: 100%;
+    height: 50%;
+
+}
+#stat_table{
+    border: 1px solid black;
+    table-layout: fixed;
+    width: 60%;
+}
+#ot_td {
+    border: 1px solid black;
+    width: 100px; 
+}
+#chart_tr{
+    /*height: 100%;*/
+}
+</style>
